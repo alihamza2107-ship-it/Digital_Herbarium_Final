@@ -326,72 +326,6 @@ html, body, [class*="css"], .stApp {
     border: 1px solid rgba(211,47,47,.45);
 }
 
-.conf-wrap {
-    margin: 12px 0 4px;
-}
-
-.conf-head {
-    display: flex;
-    justify-content: space-between;
-    font-weight: 700;
-    font-size: .85rem;
-    margin-bottom: 5px;
-}
-
-.track {
-    height: 12px;
-    background: rgba(128,128,128,.22);
-    border-radius: 999px;
-    overflow: hidden;
-}
-
-.fill {
-    height: 100%;
-    border-radius: 999px;
-    background: linear-gradient(90deg, #66BB6A, #2E7D32);
-}
-
-.fill.low {
-    background: linear-gradient(90deg, #FFCA28, #F57C00);
-}
-
-.bar-row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin: 8px 0;
-}
-
-.bar-label {
-    flex: 0 0 38%;
-    font-size: .85rem;
-    font-weight: 600;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.bar-track {
-    flex: 1;
-    height: 10px;
-    background: rgba(128,128,128,.22);
-    border-radius: 999px;
-    overflow: hidden;
-}
-
-.bar-fill {
-    height: 100%;
-    background: linear-gradient(90deg, #81C784, #388E3C);
-    border-radius: 999px;
-}
-
-.bar-val {
-    flex: 0 0 52px;
-    text-align: right;
-    font-size: .82rem;
-    font-weight: 700;
-}
-
 .grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
@@ -495,6 +429,7 @@ button[kind^="primary"] {
 }
 
 @media (max-width: 640px) {
+
     .block-container {
         padding: .7rem .75rem 1rem;
     }
@@ -511,8 +446,9 @@ button[kind^="primary"] {
         font-size: 1.35rem;
     }
 
-    .bar-label {
-        flex-basis: 44%;
+    .stTabs [data-baseweb="tab"] {
+        padding: 0 11px;
+        font-size: .82rem;
     }
 }
 
@@ -537,6 +473,7 @@ LOGO = (
 # ======================= Common Functions =======================
 
 def footer():
+
     st.markdown(
         '<div class="nan-footer">'
         'Developed by <a href="' + NAN_URL + '" target="_blank">'
@@ -756,7 +693,7 @@ if "log" not in st.session_state:
 
 # ======================= UI Helpers =======================
 
-def result_card(d, conf, thr):
+def result_card(d):
 
     toxic = "⚠️" in d["uses"]
 
@@ -764,16 +701,9 @@ def result_card(d, conf, thr):
         d["uses"].replace("⚠️", "").strip()
     )
 
-    low = conf < thr
-
     s = (
         '<div class="card">'
-        '<div class="muted">'
-        + (
-            "Best guess (low confidence)"
-            if low else "Identified species"
-        )
-        + '</div>'
+        '<div class="muted">Identified species</div>'
         '<div class="plant-name">'
         + html.escape(d["common"])
         + '</div>'
@@ -790,19 +720,6 @@ def result_card(d, conf, thr):
         s += '<span class="badge warn">⚠ Caution</span>'
 
     s += (
-        '<div class="conf-wrap">'
-        '<div class="conf-head">'
-        '<span>Confidence</span>'
-        '<span>' + f"{conf:.1f}%" + '</span>'
-        '</div>'
-        '<div class="track">'
-        '<div class="fill'
-        + (" low" if low else "")
-        + '" style="width:'
-        + f"{min(conf, 100):.1f}"
-        + '%"></div>'
-        '</div>'
-        '</div>'
         '<div class="row-k">Distribution</div>'
         '<div class="row-v">'
         + html.escape(d["habitat"])
@@ -815,36 +732,6 @@ def result_card(d, conf, thr):
     )
 
     return s
-
-
-def top_bars(top, probs):
-
-    s = (
-        '<div class="card">'
-        '<div class="muted">Top 3 predictions</div>'
-    )
-
-    for i in top:
-
-        pct = float(probs[int(i)]) * 100
-
-        s += (
-            '<div class="bar-row">'
-            '<div class="bar-label">'
-            + html.escape(NAMES[int(i)])
-            + '</div>'
-            '<div class="bar-track">'
-            '<div class="bar-fill" style="width:'
-            + f"{pct:.1f}"
-            + '%"></div>'
-            '</div>'
-            '<div class="bar-val">'
-            + f"{pct:.1f}%"
-            + '</div>'
-            '</div>'
-        )
-
-    return s + '</div>'
 
 
 def plant_grid(items):
@@ -954,20 +841,12 @@ with tab1:
             if file else None
         )
 
-        with st.expander("⚙️ Settings"):
-
-            threshold = st.slider(
-                "Low-confidence warning (%)",
-                10,
-                95,
-                60
-            )
-
         if img is not None:
 
             st.image(
                 img,
-                caption="Your image"
+                caption="Your image",
+                use_container_width=True
             )
 
         st.caption(
@@ -996,16 +875,13 @@ with tab1:
 
             probs = predict(img, model)
 
-            top = np.argsort(probs)[::-1][:3]
-
-            idx = int(top[0])
-
-            conf = float(probs[idx]) * 100
+            # Select the class with the highest model output.
+            idx = int(np.argmax(probs))
 
             d = INFO[idx]
 
             st.markdown(
-                result_card(d, conf, threshold),
+                result_card(d),
                 unsafe_allow_html=True
             )
 
@@ -1017,21 +893,6 @@ with tab1:
                     '</div>',
                     unsafe_allow_html=True
                 )
-
-            if conf < threshold:
-
-                st.markdown(
-                    '<div class="notice warn">'
-                    'Low confidence. This may be a species '
-                    'outside the supported list.'
-                    '</div>',
-                    unsafe_allow_html=True
-                )
-
-            st.markdown(
-                top_bars(top, probs),
-                unsafe_allow_html=True
-            )
 
             if st.button(
                 "➕ Save to herbarium",
@@ -1050,7 +911,6 @@ with tab1:
                         "Species": d["scientific"],
                         "Common name": d["common"],
                         "Family": d["family"],
-                        "Confidence": f"{conf:.1f}%",
                         "thumb": thumb
                     }
                 )
@@ -1117,20 +977,17 @@ with tab2:
 
                 st.image(
                     e["thumb"],
-                    caption=(
-                        e["Species"]
-                        + " ("
-                        + e["Confidence"]
-                        + ")"
-                    )
+                    caption=e["Species"],
+                    use_container_width=True
                 )
 
+        # Exclude image thumbnails and any old Confidence field.
         df = pd.DataFrame(
             [
                 {
                     k: v
                     for k, v in e.items()
-                    if k != "thumb"
+                    if k not in ("thumb", "Confidence")
                 }
                 for e in log
             ]
@@ -1138,7 +995,8 @@ with tab2:
 
         st.dataframe(
             df,
-            hide_index=True
+            hide_index=True,
+            use_container_width=True
         )
 
         c1, c2 = st.columns(2)
@@ -1149,12 +1007,16 @@ with tab2:
                 "⬇️ CSV download",
                 df.to_csv(index=False).encode("utf-8"),
                 file_name="my_herbarium.csv",
-                mime="text/csv"
+                mime="text/csv",
+                use_container_width=True
             )
 
         with c2:
 
-            if st.button("🗑️ Clear herbarium"):
+            if st.button(
+                "🗑️ Clear herbarium",
+                use_container_width=True
+            ):
 
                 st.session_state.log = []
 
@@ -1227,158 +1089,65 @@ with tab4:
         unsafe_allow_html=True
     )
 
-    if not METRICS:
+    hist = METRICS.get("history", {})
 
-        st.info(
-            "Place metrics.json in the app folder to see "
-            "accuracy, reports and confusion matrix."
+    if (
+        hist
+        and "accuracy" in hist
+        and "val_accuracy" in hist
+        and "loss" in hist
+        and "val_loss" in hist
+    ):
+
+        fig, ax = plt.subplots(
+            1,
+            2,
+            figsize=(11, 3.4)
         )
+
+        for a, (k1, k2, title) in zip(
+            ax,
+            [
+                ("accuracy", "val_accuracy", "Training History"),
+                ("loss", "val_loss", "Loss History")
+            ]
+        ):
+
+            a.plot(
+                hist[k1],
+                label="Train",
+                linewidth=2
+            )
+
+            a.plot(
+                hist[k2],
+                label="Validation",
+                linewidth=2
+            )
+
+            a.set_title(title)
+            a.set_xlabel("Epoch")
+            a.legend()
+            a.grid(alpha=0.2)
+
+        fig.tight_layout()
+
+        st.pyplot(fig)
+
+        plt.close(fig)
 
     else:
 
-        rep = METRICS.get("report", {})
-
-        c1, c2, c3 = st.columns(3)
-
-        c1.metric(
-            "Test accuracy",
-            f"{METRICS.get('test_acc', 0) * 100:.1f}%"
+        st.info(
+            "Training graphs are not available. "
+            "Add training history to metrics.json to display them."
         )
 
-        c2.metric(
-            "Validation accuracy",
-            f"{METRICS.get('val_acc', 0) * 100:.1f}%"
-        )
-
-        if "macro avg" in rep:
-
-            c3.metric(
-                "Macro F1",
-                f"{rep['macro avg']['f1-score']:.3f}"
-            )
-
-        st.caption(
-            f"Test images: {METRICS.get('n_test', '?')} | "
-            f"Training images: {METRICS.get('n_train', '?')} | "
-            f"Trained: {METRICS.get('created', '?')}"
-        )
-
-        hist = METRICS.get("history")
-
-        if hist:
-
-            fig, ax = plt.subplots(
-                1,
-                2,
-                figsize=(11, 3.4)
-            )
-
-            for a, (k1, k2, t) in zip(
-                ax,
-                [
-                    ("accuracy", "val_accuracy", "Accuracy"),
-                    ("loss", "val_loss", "Loss")
-                ]
-            ):
-
-                a.plot(hist[k1], label="Train")
-                a.plot(hist[k2], label="Validation")
-                a.set_title(t)
-                a.legend()
-
-            fig.tight_layout()
-
-            st.pyplot(fig)
-
-            plt.close(fig)
-
-        if rep:
-
-            st.subheader(
-                "Per-species report (test set)"
-            )
-
-            rows = [
-                {
-                    "Species": n,
-                    "Precision": rep[n]["precision"],
-                    "Recall": rep[n]["recall"],
-                    "F1": rep[n]["f1-score"],
-                    "Images": int(rep[n]["support"])
-                }
-                for n in NAMES
-                if n in rep
-            ]
-
-            st.dataframe(
-                pd.DataFrame(rows).round(3),
-                hide_index=True
-            )
-
-        cm = METRICS.get("cm")
-
-        if cm:
-
-            st.subheader(
-                "Confusion matrix (test set)"
-            )
-
-            cm = np.array(cm)
-
-            fig, ax = plt.subplots(
-                figsize=(7.5, 6.5)
-            )
-
-            im = ax.imshow(
-                cm,
-                cmap="Greens"
-            )
-
-            ax.set_xticks(range(len(NAMES)))
-            ax.set_yticks(range(len(NAMES)))
-
-            ax.set_xticklabels(
-                NAMES,
-                rotation=60,
-                ha="right",
-                fontsize=8
-            )
-
-            ax.set_yticklabels(
-                NAMES,
-                fontsize=8
-            )
-
-            for i in range(cm.shape[0]):
-
-                for j in range(cm.shape[1]):
-
-                    if cm[i, j]:
-
-                        ax.text(
-                            j,
-                            i,
-                            str(cm[i, j]),
-                            ha="center",
-                            va="center",
-                            fontsize=8,
-                            color=(
-                                "white"
-                                if cm[i, j] > cm.max() / 2
-                                else "black"
-                            )
-                        )
-
-            ax.set_xlabel("Predicted")
-            ax.set_ylabel("Actual")
-
-            fig.colorbar(im)
-
-            fig.tight_layout()
-
-            st.pyplot(fig)
-
-            plt.close(fig)
+    st.caption(
+        "Architecture: MobileNetV2 | "
+        "Dataset: GBIF herbarium sheet images | "
+        f"Supported species: {len(NAMES)}"
+    )
 
 
 # ======================= About =======================
